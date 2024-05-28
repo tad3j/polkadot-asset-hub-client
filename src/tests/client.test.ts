@@ -6,7 +6,7 @@ dotenv.config();
 const MNEMONIC = process.env.MNEMONIC;
 const TEST_STATIC_ASSET_ID = 790;
 const TEST_ASSET_ID = 791;
-const TEST_CREATE_ASSET_ID = 778; //to create an asset one has to provide id that wasn't used
+const TEST_CREATE_ASSET_ID = 780; //TODO: to create an asset one has to provide id that wasn't used
 const TEST_SECONDARY_WALLET =
   '5Hb3L9eU6yaATAzvmiNoNRptikeQP6MLV5gjp4SQMArQbTUt';
 
@@ -15,8 +15,7 @@ describe('Polkadot asset hub client test', () => {
 
   beforeAll(async () => {
     client = await AssetHubClient.getInstance(
-      // 'wss://asset-hub-westend-rpc.dwellir.com',
-      'wss://westend-asset-hub-rpc.polkadot.io',
+      'wss://asset-hub-westend-rpc.dwellir.com',
       MNEMONIC,
     );
     walletAddress = client.getAccountAddress();

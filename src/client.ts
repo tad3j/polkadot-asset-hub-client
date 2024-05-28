@@ -5,11 +5,11 @@ import {
   WsProvider,
 } from '@polkadot/api';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { TxHandler } from './helpers';
+import { sleep, timeout } from './helpers';
 import '@polkadot/api-augment';
 import '@polkadot/types-augment';
 import { SubmittableExtrinsic } from '@polkadot/api/types';
-import { SpRuntimeDispatchError } from '@polkadot/types/lookup';
+import { ISubmittableResult } from '@polkadot/types/types';
 
 export class AssetHubClient {
   private static instance: AssetHubClient;
@@ -55,7 +55,96 @@ export class AssetHubClient {
       nonce: -1,
     });
 
-    return await TxHandler.handle(signedTx);
+    return await this.sendAsync(signedTx);
+  }
+
+  private async sendAsync(
+    transaction: SubmittableExtrinsic<'promise'>,
+    waitForFinalization = true,
+  ): Promise<SubmittableResult> {
+    const decodeError = this.decodeError(this.api);
+    function submit(): Promise<SubmittableResult> {
+      return new Promise((resolve, reject) => {
+        timeout(async () => {
+          await transaction
+            .send((result, extra) => {
+              // console.log('result', result.status.toString());
+              if (result.status.isInBlock) {
+                const error = decodeError(result);
+                if (error) {
+                  return reject(error);
+                }
+                if (!waitForFinalization) {
+                  return resolve(result);
+                }
+              }
+              if (result.status.isFinalized) {
+                return resolve(result);
+              }
+              if (
+                result.status.isInvalid ||
+                result.status.isDropped ||
+                result.status.isUsurped ||
+                result.isError
+              ) {
+                const error = decodeError(result);
+                return error ? reject(error) : reject(result);
+              }
+              // TODO: should we check this status?
+              // if (result.status.isRetracted) {
+              //   const error = decodeError(result);
+              //   return error ? reject(error) : reject(result);
+              // }
+            })
+            .catch((e) => reject(e));
+        }, 60_000).catch((e) => reject(e));
+      });
+    }
+
+    for (let i = 0; i < 200; ++i) {
+      try {
+        return await submit();
+      } catch (e) {
+        const msg =
+          typeof e == 'string'
+            ? e.toLowerCase()
+            : e?.message
+              ? e?.message.toString().toLowerCase()
+              : String(e);
+        if (msg.includes('priority is too low')) {
+          await sleep(50);
+          continue;
+        } else if (msg.includes('transaction is outdated')) {
+          continue;
+        } else if (msg.includes('timeout')) {
+          i += 9;
+          continue;
+        }
+
+        throw e;
+      }
+    }
+
+    throw new Error('Could not execute extrinsic');
+  }
+
+  private decodeError(api: ApiPromise) {
+    return (result: ISubmittableResult) => {
+      for (const e of result.events) {
+        if (api.events.system.ExtrinsicFailed.is(e.event)) {
+          const [error, _info] = e.event.data;
+          if (error.isModule) {
+            const { docs, method, section } = api.registry.findMetaError(
+              error.asModule,
+            );
+            return new Error(`${section}.${method}: ${docs.join(' ')}`);
+          }
+
+          return new Error(error.toString());
+        }
+      }
+      return null;
+    };
   }
 
   // QUERIES
@@ -156,11 +245,12 @@ export class AssetHubClient {
   }
 
   async revokeOwnership(id: number) {
+    // create proxy
     const createPureProxyResult = await this.signAndSend(
       this.api.tx.proxy.createPure('Any', 0, 0),
     );
-    const pureEvent = createPureProxyResult.events.find(
-      (event) => event.event.method === 'PureCreated',
+    const pureEvent = createPureProxyResult.events.find((event) =>
+      this.api.events.proxy.PureCreated.is(event.event),
     );
     if (!pureEvent) {
       throw new Error(
@@ -171,55 +261,32 @@ export class AssetHubClient {
     const createPureProxyBlockNumber =
       createPureProxyResult.blockNumber.toNumber();
     const createPureProxyBlocExtrinsicIndex = createPureProxyResult.txIndex;
-    // const pureProxyAddress = '5EUsTjLnb5epxTZ2TbD4LjyWWhfu9XWPJivoAaqfU7PqxRLa';
-    // const createPureProxyBlockNumber = 7612416;
-    // const createPureProxyBlocExtrinsicIndex = 2;
 
-    const r1 = await this.signAndSend(
-      this.api.tx.assets.setTeam(
-        id,
-        pureProxyAddress,
-        pureProxyAddress,
-        pureProxyAddress,
-      ),
+    // transfer asset ownership to proxy created above
+    const result = await this.signAndSend(
+      this.api.tx.utility.batchAll([
+        this.api.tx.balances.transferKeepAlive(pureProxyAddress, 1000000000),
+        this.api.tx.assets.setTeam(
+          id,
+          pureProxyAddress,
+          pureProxyAddress,
+          pureProxyAddress,
+        ),
+        this.api.tx.assets.transferOwnership(id, pureProxyAddress),
+        this.api.tx.proxy.proxy(
+          pureProxyAddress,
+          'Any',
+          this.api.tx.proxy.killPure(
+            this.account.address,
+            'Any',
+            0,
+            createPureProxyBlockNumber,
+            createPureProxyBlocExtrinsicIndex,
+          ),
+        ),
+      ]),
     );
 
-    const r2 = await this.signAndSend(
-      this.api.tx.balances.transfer(pureProxyAddress, 0.01),
-    );
-    const r3 = await this.signAndSend(
-      this.api.tx.assets.transferOwnership(id, pureProxyAddress),
-    );
-
-    const r4 = await this.signAndSend(
-      this.api.tx.proxy.killPure(
-        this.account.address,
-        'Any',
-        0,
-        createPureProxyBlockNumber,
-        createPureProxyBlocExtrinsicIndex,
-      ),
-    );
-
-    // const result = await this.signAndSend(
-    //   this.api.tx.utility.batchAll([
-    //     this.api.tx.assets.setTeam(
-    //       id,
-    //       pureProxyAddress,
-    //       pureProxyAddress,
-    //       pureProxyAddress,
-    //     ),
-    //     this.api.tx.assets.transferOwnership(id, pureProxyAddress),
-    //     this.api.tx.proxy.killPure(
-    //       this.account.address,
-    //       'Any',
-    //       0,
-    //       createPureProxyBlockNumber,
-    //       createPureProxyBlocExtrinsicIndex,
-    //     ),
-    //   ]),
-    // );
-
-    return r3.txHash.toHex();
+    return result.txHash.toHex();
   }
 }
