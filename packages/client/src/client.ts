@@ -48,23 +48,13 @@ export class AssetHubClient {
   }
 
   private async waitForFinalized(
-    observable: Observable<TxEvent>,
+    txEvent: Observable<TxEvent>,
   ): Promise<TxFinalized> {
     return await new Promise((resolve, reject) => {
-      observable.subscribe((txEvent) => {
+      txEvent.subscribe((txEvent) => {
         console.log(txEvent);
         if (txEvent.type === 'finalized') {
           return txEvent.ok ? resolve(txEvent) : reject(txEvent);
-        } else if (txEvent.type === 'txBestBlocksState') {
-          if (txEvent.found === true) {
-            if (!txEvent.ok) {
-              return reject(txEvent);
-            }
-          } else {
-            if (!txEvent.isValid) {
-              return reject(txEvent);
-            }
-          }
         }
       });
     });
@@ -120,8 +110,8 @@ export class AssetHubClient {
     const tx = this.api.tx.Utility.batch_all({
       calls: [createTx.decodedCall, metadataTx.decodedCall],
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -138,8 +128,8 @@ export class AssetHubClient {
       beneficiary: MultiAddress.Id(beneficiary),
       amount,
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -168,8 +158,8 @@ export class AssetHubClient {
       who: MultiAddress.Id(who),
       amount,
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -180,8 +170,8 @@ export class AssetHubClient {
       target: MultiAddress.Id(target),
       amount,
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -191,8 +181,8 @@ export class AssetHubClient {
       id,
       who: MultiAddress.Id(who),
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -202,8 +192,8 @@ export class AssetHubClient {
       id,
       who: MultiAddress.Id(who),
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -212,8 +202,8 @@ export class AssetHubClient {
     const tx = this.api.tx.Assets.freeze_asset({
       id,
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -222,8 +212,8 @@ export class AssetHubClient {
     const tx = this.api.tx.Assets.thaw_asset({
       id,
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -233,8 +223,8 @@ export class AssetHubClient {
       id,
       owner: MultiAddress.Id(owner),
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
@@ -292,8 +282,8 @@ export class AssetHubClient {
         }).decodedCall,
       ],
     });
-    const observable = tx.signSubmitAndWatch(this.signer);
-    const result = await this.waitForFinalized(observable);
+    const txEvent = tx.signSubmitAndWatch(this.signer);
+    const result = await this.waitForFinalized(txEvent);
 
     return result.txHash.toString();
   }
