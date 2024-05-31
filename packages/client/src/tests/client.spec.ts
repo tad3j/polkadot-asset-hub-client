@@ -1,6 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 import { AssetHubClient } from '../client';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
+import { startFromWorker } from 'polkadot-api/smoldot/from-worker';
+import { Worker } from 'worker_threads';
+import { chainSpec } from 'polkadot-api/chains/polkadot';
+import {
+  entropyToMiniSecret,
+  mnemonicToEntropy,
+} from '@polkadot-labs/hdkd-helpers';
+import { sr25519CreateDerive } from '@polkadot-labs/hdkd';
+import { getPolkadotSigner } from '@polkadot-api/signer';
+
 dotenv.config();
 
 const MNEMONIC = process.env.MNEMONIC;
@@ -10,19 +20,33 @@ const TEST_CREATE_ASSET_ID = 780; //TODO: to create an asset one has to provide 
 const TEST_SECONDARY_WALLET =
   '5Hb3L9eU6yaATAzvmiNoNRptikeQP6MLV5gjp4SQMArQbTUt';
 
+function getSigner(path: string) {
+  const entropy = mnemonicToEntropy(MNEMONIC);
+  const miniSecret = entropyToMiniSecret(entropy);
+  const derive = sr25519CreateDerive(miniSecret);
+  const keypair = derive(path);
+  return getPolkadotSigner(keypair.publicKey, 'Sr25519', keypair.sign);
+}
+
 describe('Polkadot asset hub client test', () => {
-  let client: AssetHubClient, walletAddress: string;
+  let client: AssetHubClient, walletAddress: string, worker: Worker;
 
   beforeAll(async () => {
+    // TODO: bad worker
+    worker = new Worker(new URL('', ''));
+    const smoldot = startFromWorker(worker);
+    const chain = await smoldot.addChain({ chainSpec });
+    const signer = getSigner('//Alice');
     client = await AssetHubClient.getInstance(
-      'wss://asset-hub-westend-rpc.dwellir.com',
-      MNEMONIC,
+      chain,
+      signer,
+      '5CcMjFPRuWzs7ijRoRLuWbE8ki2GWhEwc9RrhwhzjWgMNpAa',
     );
-    walletAddress = client.getAccountAddress();
+    walletAddress = client.getSignerAddress();
   });
 
   afterAll(async () => {
-    await client.destroyInstance();
+    await worker.terminate();
   });
 
   describe('queries', () => {
@@ -32,7 +56,7 @@ describe('Polkadot asset hub client test', () => {
         walletAddress,
       );
 
-      expect(result.balance.toNumber()).toEqual(1000000000007000);
+      expect(result.balance).toEqual(1000000000007000);
       expect(result.status.type).toEqual('Liquid');
       expect(result.reason.type).toEqual('Consumer');
     });
@@ -44,20 +68,20 @@ describe('Polkadot asset hub client test', () => {
       expect(result.issuer.toString()).toEqual(walletAddress);
       expect(result.admin.toString()).toEqual(walletAddress);
       expect(result.freezer.toString()).toEqual(walletAddress);
-      expect(result.supply.toNumber()).toEqual(1000000000007000);
-      expect(result.deposit.toNumber()).toEqual(100000000000);
-      expect(result.minBalance.toNumber()).toEqual(10000000000000);
+      expect(result.supply).toEqual(1000000000007000);
+      expect(result.deposit).toEqual(100000000000);
+      expect(result.min_balance).toEqual(10000000000000);
       expect(result.status.type).toEqual('Live');
-      expect(result.isSufficient).toEqual(false);
+      expect(result.is_sufficient).toEqual(false);
     });
 
     test('get asset metadata', async () => {
       const result = await client.getAssetMetadata(TEST_STATIC_ASSET_ID);
 
-      expect(result.name.toHuman()).toEqual('TST');
-      expect(result.symbol.toHuman()).toEqual('TST');
-      expect(result.decimals.toNumber()).toEqual(12);
-      expect(result.isFrozen).toEqual(false);
+      expect(result.name.asText()).toEqual('TST');
+      expect(result.symbol.asText()).toEqual('TST');
+      expect(result.decimals).toEqual(12);
+      expect(result.is_frozen).toEqual(false);
     });
   });
 
@@ -69,20 +93,24 @@ describe('Polkadot asset hub client test', () => {
         'Name',
         'NME',
         12,
-        1000,
+        BigInt(1000),
       );
 
       expect(hash.substring(0, 2)).toEqual('0x');
     });
 
     test('can mint asset', async () => {
-      const hash = await client.mint(TEST_ASSET_ID, walletAddress, 1000);
+      const hash = await client.mint(
+        TEST_ASSET_ID,
+        walletAddress,
+        BigInt(1000),
+      );
 
       expect(hash.substring(0, 2)).toEqual('0x');
     });
 
     test('can burn asset', async () => {
-      const hash = await client.burn(TEST_ASSET_ID, walletAddress, 100);
+      const hash = await client.burn(TEST_ASSET_ID, walletAddress, BigInt(100));
 
       expect(hash.substring(0, 2)).toEqual('0x');
     });
@@ -91,7 +119,7 @@ describe('Polkadot asset hub client test', () => {
       const hash = await client.transfer(
         TEST_ASSET_ID,
         TEST_SECONDARY_WALLET,
-        100,
+        BigInt(100),
       );
 
       expect(hash.substring(0, 2)).toEqual('0x');

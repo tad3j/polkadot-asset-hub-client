@@ -1,0 +1,6 @@
+{
+  "assetHub": {
+    "wsUrl": "wss://asset-hub-westend-rpc.dwellir.com",
+    "metadata": "assetHub.scale"
+  }
+}
