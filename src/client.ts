@@ -11,6 +11,8 @@ import '@polkadot/types-augment';
 import { SubmittableExtrinsic } from '@polkadot/api/types';
 import { ISubmittableResult } from '@polkadot/types/types';
 
+const TREASURY_ADDRESS = '13UVJyLnbVp9RBZYFwFGyDvVd1y27Tt8tkntv6Q7JVPhFsTB';
+
 export class AssetHubClient {
   private static instance: AssetHubClient;
 
@@ -245,6 +247,13 @@ export class AssetHubClient {
   }
 
   async revokeOwnership(id: number) {
+    const result = await this.signAndSend(
+      this.api.tx.assets.transferOwnership(id, TREASURY_ADDRESS),
+    );
+    return result.txHash.toHex();
+  }
+
+  async revokeOwnershipOld(id: number) {
     // create proxy
     const createPureProxyResult = await this.signAndSend(
       this.api.tx.proxy.createPure('Any', 0, 0),
