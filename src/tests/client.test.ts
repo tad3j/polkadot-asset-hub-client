@@ -75,6 +75,25 @@ describe('Polkadot asset hub client test', () => {
       expect(hash.substring(0, 2)).toEqual('0x');
     });
 
+    test('can update metadata', async () => {
+      const newName = 'Name2';
+      const newSymbol = 'NME2';
+      const newDecimals = 12;
+
+      const hash = await client.updateMetadata(
+        TEST_ASSET_ID,
+        newName,
+        newSymbol,
+        newDecimals,
+      );
+
+      expect(hash.substring(0, 2)).toEqual('0x');
+      const metadata = await client.getAssetMetadata(TEST_ASSET_ID);
+      expect(metadata.name.toHuman()).toEqual(newName);
+      expect(metadata.symbol.toHuman()).toEqual(newSymbol);
+      expect(metadata.decimals.toNumber()).toEqual(newDecimals);
+    });
+
     test('can mint asset', async () => {
       const hash = await client.mint(TEST_ASSET_ID, walletAddress, 1000);
 
@@ -112,6 +131,34 @@ describe('Polkadot asset hub client test', () => {
     test('can freeze asset class', async () => {
       const hash = await client.freezeAsset(TEST_ASSET_ID);
       expect(hash.substring(0, 2)).toEqual('0x');
+    });
+
+    test('can change issuer', async () => {
+      const hash = await client.updateTeam(
+        TEST_ASSET_ID,
+        TEST_SECONDARY_WALLET,
+        walletAddress,
+        walletAddress,
+      );
+      expect(hash.substring(0, 2)).toEqual('0x');
+      const assetDetails = await client.getAssetDetails(TEST_ASSET_ID);
+      expect(assetDetails.issuer.toString()).toEqual(TEST_SECONDARY_WALLET);
+      expect(assetDetails.admin.toString()).toEqual(walletAddress);
+      expect(assetDetails.freezer.toString()).toEqual(walletAddress);
+    });
+
+    test('can change freezer', async () => {
+      const hash = await client.updateTeam(
+        TEST_ASSET_ID,
+        walletAddress,
+        walletAddress,
+        TEST_SECONDARY_WALLET,
+      );
+      expect(hash.substring(0, 2)).toEqual('0x');
+      const assetDetails = await client.getAssetDetails(TEST_ASSET_ID);
+      expect(assetDetails.issuer.toString()).toEqual(walletAddress);
+      expect(assetDetails.admin.toString()).toEqual(walletAddress);
+      expect(assetDetails.freezer.toString()).toEqual(TEST_SECONDARY_WALLET);
     });
 
     test('can thaw asset class', async () => {

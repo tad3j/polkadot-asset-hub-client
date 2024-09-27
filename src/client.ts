@@ -218,6 +218,25 @@ export class AssetHubClient {
     return result.txHash.toHex();
   }
 
+  async updateTeam(id: number, issuer: string, admin: string, freezer: string) {
+    const result = await this.signAndSend(
+      this.api.tx.assets.setTeam(id, issuer, admin, freezer),
+    );
+
+    return result.txHash.toHex();
+  }
+  async updateMetadata(
+    id: number,
+    name: string,
+    symbol: string,
+    decimals: number,
+  ) {
+    const result = await this.signAndSend(
+      this.api.tx.assets.setMetadata(id, name, symbol, decimals),
+    );
+    return result.txHash.toHex();
+  }
+
   async thaw(id: number, who: string) {
     const result = await this.signAndSend(this.api.tx.assets.thaw(id, who));
 
